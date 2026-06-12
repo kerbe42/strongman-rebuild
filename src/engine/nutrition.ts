@@ -29,11 +29,21 @@ interface DinnerPlate {
   protein_source: Ingredient;
   default_days: string[];
 }
+interface BigMeal {
+  id: string;
+  name: string;
+  tag: "dairy" | "flesh" | "omad";
+  flesh_oz: number;
+  protein_g: number;
+  kcal: number;
+  items: Ingredient[];
+}
 interface MealsData {
   fixed_template: TemplateMeal[];
   dinner_rotation: DinnerPlate[];
   dinner_fixed_sides: { protein_g: number; kcal: number; items: Ingredient[] };
   super_meals_extra: TemplateMeal[];
+  big_meals: BigMeal[];
 }
 
 const MEALS = meals as unknown as MealsData;
@@ -61,7 +71,13 @@ export interface MealRecipe {
   items: RecipeItem[];
   prep?: string;
   note?: string;
+  /** Big-meal only: "dairy" | "flesh" | "omad". */
+  tag?: string;
+  /** Big-meal only: oz of flesh it uses against the 8 oz/day gout cap. */
+  fleshOz?: number;
 }
+
+export const BIG_MEALS_GROUP = "Big meals (1–2 a day)";
 
 export interface CatalogMeal {
   id: string;
@@ -111,7 +127,24 @@ export function mealRecipes(): MealRecipe[] {
       note: m.note,
     });
   }
+  for (const m of MEALS.big_meals) {
+    out.push({
+      id: m.id,
+      name: m.name,
+      group: BIG_MEALS_GROUP,
+      proteinG: m.protein_g,
+      kcal: m.kcal,
+      items: m.items,
+      tag: m.tag,
+      fleshOz: m.flesh_oz,
+    });
+  }
   return out;
+}
+
+/** The big composite meals for a 1-2 meal/day pattern. */
+export function bigMeals(): MealRecipe[] {
+  return mealRecipes().filter((m) => m.group === BIG_MEALS_GROUP);
 }
 
 /** The 5 fixed-template meals — the planned default day (197 g / 2535 kcal). */
@@ -213,5 +246,6 @@ export function scanMealsForViolations(): MealViolation[] {
   for (const d of MEALS.dinner_rotation) check(d.name, d.protein_source.food);
   for (const it of MEALS.dinner_fixed_sides.items) check("Dinner sides", it.food);
   for (const m of MEALS.super_meals_extra) for (const it of m.items) check(m.name, it.food);
+  for (const m of MEALS.big_meals) for (const it of m.items) check(m.name, it.food);
   return violations;
 }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   FLARE_PROTOCOL_SWAP,
+  bigMeals,
   dinnerForDow,
   dowOf,
   findExcludedIngredients,
@@ -29,7 +30,7 @@ function entryFor(recipe: MealRecipe, mult: number): MealEntry {
 }
 
 export function Meals() {
-  const { state, setMealLog } = useStore();
+  const { state, setMealLog, updateSettings } = useStore();
   const date = todayISO();
   const meals = state.mealLog[date] ?? [];
   const flareOn = state.dailyChecks[date]?.flareProtocol ?? false;
@@ -41,6 +42,7 @@ export function Meals() {
   const proteinTarget = proteinTargetG(state.settings.bodyweightLb);
 
   const template = useMemo(() => fixedTemplateMeals(), []);
+  const bigMealList = useMemo(() => bigMeals(), []);
   const tonightsDinner = useMemo(() => dinnerForDow(dowOf(date)), [date]);
   const templateTotals = template.reduce(
     (a, m) => ({ p: a.p + m.proteinG, k: a.k + m.kcal }),
@@ -116,8 +118,16 @@ export function Meals() {
         </section>
       )}
 
+      <BigMealsSection
+        meals={bigMealList}
+        mealsPerDay={state.settings.mealsPerDay}
+        proteinTarget={proteinTarget}
+        onAdd={addMeal}
+        onSetMealsPerDay={(n) => updateSettings({ mealsPerDay: n })}
+      />
+
       <section>
-        <SectionTitle>Today's plan — what to eat & make</SectionTitle>
+        <SectionTitle>Or the 6-small-meal standard day</SectionTitle>
         <p className="px-1 pb-2 text-xs text-slate-500">
           Your standard day is these five, every day ({templateTotals.p} g / {templateTotals.k} kcal),
           plus tonight's dinner. Tap any meal to see its ingredients and how to build it.
@@ -146,6 +156,75 @@ export function Meals() {
       <BrowseLibrary onAdd={addMeal} />
       <CustomMeal onAdd={addMeal} />
     </div>
+  );
+}
+
+function BigMealsSection({
+  meals,
+  mealsPerDay,
+  proteinTarget,
+  onAdd,
+  onSetMealsPerDay,
+}: {
+  meals: MealRecipe[];
+  mealsPerDay: number;
+  proteinTarget: number;
+  onAdd: (e: MealEntry) => void;
+  onSetMealsPerDay: (n: 1 | 2) => void;
+}) {
+  const perMeal = Math.round(proteinTarget / mealsPerDay / 5) * 5;
+  const groups: { tag: string; label: string }[] = [
+    { tag: "dairy", label: "Dairy-forward (no flesh)" },
+    { tag: "flesh", label: "With flesh (uses your 8 oz/day)" },
+    { tag: "omad", label: "One meal (OMAD — a full day in one)" },
+  ];
+  return (
+    <section>
+      <SectionTitle>Big meals — 1 or 2 a day</SectionTitle>
+      <Card className="mb-2 space-y-2 p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-slate-200">Meals today</span>
+          <div className="flex gap-1">
+            {([1, 2] as const).map((n) => (
+              <button
+                key={n}
+                onClick={() => onSetMealsPerDay(n)}
+                className={`tap h-9 w-11 rounded-lg text-sm font-bold ${
+                  mealsPerDay === n ? "bg-blue-600 text-white" : "bg-slate-800 text-slate-300"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="text-sm text-slate-300">
+          Target <span className="font-semibold text-slate-100">{proteinTarget} g</span> protein ·{" "}
+          {mealsPerDay} meal{mealsPerDay > 1 ? "s" : ""} → ~
+          <span className="font-semibold text-slate-100">{perMeal} g</span> each.
+        </p>
+        <p className="text-xs text-slate-500">
+          Pair one dairy + one flesh meal for a 2-meal day — that keeps you under the 8 oz/day flesh
+          cap. Tap a meal for the recipe.
+        </p>
+      </Card>
+      {groups.map((g) => {
+        const items = meals.filter((m) => m.tag === g.tag);
+        if (items.length === 0) return null;
+        return (
+          <div key={g.tag} className="mt-3">
+            <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              {g.label}
+            </p>
+            <div className="space-y-2">
+              {items.map((m) => (
+                <MealCard key={m.id} recipe={m} onAdd={onAdd} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </section>
   );
 }
 

@@ -18,6 +18,7 @@ export function defaultState(): AppState {
       equipment: { sandbag: false, axle: false },
       pinnedDemos: {},
       unitsDisplay: "lb",
+      mealsPerDay: 2,
     },
     tms: {},
     overrides: {},

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  BIG_MEALS_GROUP,
+  bigMeals,
   dinnerForDow,
   dinnerRotationWeeklyAverage,
   findExcludedIngredients,
@@ -66,6 +68,42 @@ describe("meal recipes — ingredients, amounts, prep", () => {
   it("carries prep instructions where the data provides them", () => {
     const oats = recipes.find((m) => m.id === "protein_oats")!;
     expect(oats.prep).toBe("Cook oats in milk, stir whey in off heat.");
+  });
+});
+
+describe("big meals — 1-to-2-a-day, hit ~230 g cleanly", () => {
+  const big = bigMeals();
+
+  it("exposes the big-meal set with tags + flesh oz", () => {
+    expect(big.length).toBeGreaterThanOrEqual(6);
+    expect(big.every((m) => m.group === BIG_MEALS_GROUP)).toBe(true);
+    expect(new Set(big.map((m) => m.tag))).toEqual(new Set(["dairy", "flesh", "omad"]));
+    const omad = big.find((m) => m.tag === "omad")!;
+    expect(omad.fleshOz).toBe(8);
+  });
+
+  it("each big meal's ingredients sum exactly to its stated macros", () => {
+    for (const m of big) {
+      const p = m.items.reduce((a, it) => a + (it.p ?? 0), 0);
+      const k = m.items.reduce((a, it) => a + (it.kcal ?? 0), 0);
+      expect(p).toBe(m.proteinG);
+      expect(k).toBe(m.kcal);
+    }
+  });
+
+  it("a dairy + flesh pair clears the 230 g target within the 8 oz flesh cap", () => {
+    const dairy = big.filter((m) => m.tag === "dairy");
+    const flesh = big.filter((m) => m.tag === "flesh");
+    // best dairy + best flesh pairing
+    const best = Math.max(...dairy.map((d) => d.proteinG)) + Math.max(...flesh.map((f) => f.proteinG));
+    expect(best).toBeGreaterThanOrEqual(230);
+    // each flesh meal stays within the 8 oz/day cap on its own
+    expect(flesh.every((f) => (f.fleshOz ?? 0) <= 8)).toBe(true);
+  });
+
+  it("an OMAD plate hits the target in one meal", () => {
+    const omad = big.find((m) => m.tag === "omad")!;
+    expect(omad.proteinG).toBeGreaterThanOrEqual(230);
   });
 });
 

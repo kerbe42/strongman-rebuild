@@ -7,6 +7,7 @@ export interface Settings {
   equipment: { sandbag: boolean; axle: boolean }; // gates substitutions
   pinnedDemos: Record<string, string>; // exerciseId -> user-supplied video URL
   unitsDisplay: "lb";
+  mealsPerDay: 1 | 2; // how many meals/day the user eats (drives the per-meal protein goal)
 }
 
 /** Sparse, per-day deltas layered on top of generated plan output. */
