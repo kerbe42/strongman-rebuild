@@ -3,9 +3,11 @@ import {
   allLifts,
   dayForDate,
   getExercise,
+  liftTrajectory,
   proteinTargetG,
   resolveTM,
   todayISO,
+  TOTAL_WEEKS,
 } from "../engine";
 import { LineChart, type Point } from "../components/LineChart";
 import { Button, Card, SectionTitle } from "../components/ui";
@@ -33,6 +35,12 @@ export function Progress() {
 
   const [sel, setSel] = useState("");
   const activeExercise = sel || loggedExercises[0] || "";
+
+  // Projected 52-week climb for the trajectory section.
+  const [projLift, setProjLift] = useState(allLifts()[0]?.id ?? "");
+  const traj = useMemo(() => liftTrajectory(projLift, state.tms), [projLift, state.tms]);
+  const projSeries: Point[] = traj.weekly.map((p) => ({ label: `W${p.week}`, value: p.weight }));
+  const currentWeek = dayForDate(todayISO())?.week ?? null;
 
   const topSetSeries: Point[] = useMemo(() => {
     if (!activeExercise) return [];
@@ -118,6 +126,43 @@ export function Progress() {
               <LineChart data={topSetSeries} unit=" lb" />
             </>
           )}
+        </Card>
+      </section>
+
+      <section>
+        <SectionTitle>Projected climb (52 weeks)</SectionTitle>
+        <Card className="space-y-3 p-4">
+          <select
+            value={projLift}
+            onChange={(e) => setProjLift(e.target.value)}
+            className="h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-sm text-slate-100 focus:outline-none"
+          >
+            {allLifts().map((lift) => (
+              <option key={lift.id} value={lift.id}>
+                {lift.name}
+              </option>
+            ))}
+          </select>
+          <LineChart data={projSeries} unit=" lb" />
+          <div className="grid grid-cols-4 gap-1 text-center">
+            {traj.quarters.map((qm) => (
+              <div key={qm.quarter} className="rounded bg-slate-800/70 px-1 py-1.5">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Q{qm.quarter}</div>
+                <div className="text-sm tabular-nums text-slate-100">{qm.topBuildSet}</div>
+                <div className="text-[10px] text-slate-500">top set</div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500">
+            Top working-set weight across the plan. The saw-teeth are deload weeks; each quarter peaks higher, and
+            the whole line redraws upward as you log heavier test weeks.
+            {currentWeek != null && (
+              <>
+                {" "}
+                You're in <span className="text-slate-300">week {currentWeek}</span> of {TOTAL_WEEKS}.
+              </>
+            )}
+          </p>
         </Card>
       </section>
 

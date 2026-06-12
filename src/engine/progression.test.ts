@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import testVectors from "../../data/test_vectors.json";
 import {
   buildIndex,
+  liftTrajectory,
   mround,
   quarterOf,
   targetWeight,
@@ -102,5 +103,48 @@ describe("cap and TM-override behaviour", () => {
     // Override Q1 to 405; Q2 suggestion = 405 + q_delta[0] (20) = 425; wk14 k1 => 425.
     const tms = { trap_bar_deadlift: [405, null, null, null] as (number | null)[] };
     expect(targetWeight("trap_bar_deadlift", 14, tms)).toBe(425);
+  });
+});
+
+describe("liftTrajectory — full 52-week projection for the trajectory view", () => {
+  it("returns one weekly point per program week, each with weight/type/quarter", () => {
+    const t = liftTrajectory("trap_bar_deadlift");
+    expect(t.weekly).toHaveLength(52);
+    // Week 1 is the calibrated TM itself.
+    expect(t.weekly[0]).toEqual({ week: 1, weight: 315, type: "build", quarter: 1 });
+    // Deload week 4 dips to 0.6*TM.
+    expect(t.weekly[3]).toEqual({ week: 4, weight: 190, type: "deload", quarter: 1 });
+    // Top build week (wq 11, +10/wk * 8) is the quarter's working peak.
+    expect(t.weekly[10]).toEqual({ week: 11, weight: 395, type: "build", quarter: 1 });
+    // Week 13 is the test week.
+    expect(t.weekly[12]!.type).toBe("test");
+    expect(t.weekly[12]!.quarter).toBe(1);
+  });
+
+  it("summarizes each quarter with its TM and top build set", () => {
+    const t = liftTrajectory("trap_bar_deadlift");
+    expect(t.quarters).toHaveLength(4);
+    expect(t.quarters[0]).toEqual({ quarter: 1, tm: 315, topBuildSet: 395 });
+    // 315 -> +20/+15/+10 quarter deltas; top build = TM + 80.
+    expect(t.quarters[3]).toEqual({ quarter: 4, tm: 360, topBuildSet: 440 });
+  });
+
+  it("honors saved per-quarter TM overrides and redraws the whole climb", () => {
+    const tms = { trap_bar_deadlift: [405, null, null, null] as (number | null)[] };
+    const t = liftTrajectory("trap_bar_deadlift", tms);
+    expect(t.weekly[0]!.weight).toBe(405);
+    expect(t.quarters[0]!.tm).toBe(405);
+    // Q2 suggestion chains off the override: 405 + 20 = 425.
+    expect(t.quarters[1]!.tm).toBe(425);
+  });
+
+  it("respects hard caps and flat-within-quarter lifts", () => {
+    // Suitcase carry caps at 90 even though raw progression would exceed it.
+    const sc = liftTrajectory("suitcase_carry");
+    expect(Math.max(...sc.weekly.map((p) => p.weight))).toBe(90);
+    // Sandbag is flat within a quarter: every Q1 week is the same load.
+    const sb = liftTrajectory("sandbag");
+    const q1 = sb.weekly.filter((p) => p.quarter === 1).map((p) => p.weight);
+    expect(new Set(q1).size).toBe(1);
   });
 });

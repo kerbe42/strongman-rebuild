@@ -10,7 +10,7 @@
 //   deload target = mround(TM[q] * 0.6, round_to)
 //   sandbag (flat per quarter) = mround(TM[q], round_to)
 //   TM[q] suggestion = TM[q-1] + q_deltas[q-2]      (user-overridable per slot)
-import { getLift } from "./config";
+import { getLift, TOTAL_WEEKS } from "./config";
 import type { Quarter, TmOverrides, WeekType } from "./types";
 
 /** Excel MROUND: round to nearest `multiple`, ties round up (away from zero). */
@@ -76,4 +76,55 @@ export function targetWeight(liftId: string, week: number, overrides: TmOverride
     raw = mround(tm + (k - 1) * lift.build_increment, lift.round_to);
   }
   return lift.cap != null ? Math.min(raw, lift.cap) : raw;
+}
+
+/** One week on the projected climb: the prescribed working weight + context. */
+export interface TrajectoryPoint {
+  week: number;
+  weight: number;
+  type: WeekType;
+  quarter: number;
+}
+
+/** Per-quarter summary: the training max and the quarter's top build set. */
+export interface QuarterMilestone {
+  quarter: number;
+  tm: number;
+  topBuildSet: number;
+}
+
+export interface LiftTrajectory {
+  weekly: TrajectoryPoint[];
+  quarters: QuarterMilestone[];
+}
+
+/**
+ * The full 52-week projected climb for a lift: a per-week working-weight
+ * series (for charting the staircase) plus a per-quarter summary. Honors saved
+ * per-quarter TM overrides, so the projection redraws upward as the athlete
+ * logs heavier test weeks.
+ */
+export function liftTrajectory(liftId: string, overrides: TmOverrides = {}): LiftTrajectory {
+  const weekly: TrajectoryPoint[] = [];
+  for (let week = 1; week <= TOTAL_WEEKS; week++) {
+    weekly.push({
+      week,
+      weight: targetWeight(liftId, week, overrides),
+      type: weekType(week),
+      quarter: quarterOf(week),
+    });
+  }
+
+  const quarters: QuarterMilestone[] = [];
+  for (let q = 1; q <= Math.ceil(TOTAL_WEEKS / 13); q++) {
+    // The quarter's top build set is its last build week (wq 11, k=9).
+    const topBuildWeek = (q - 1) * 13 + 11;
+    quarters.push({
+      quarter: q,
+      tm: resolveTM(liftId, q, overrides),
+      topBuildSet: targetWeight(liftId, topBuildWeek, overrides),
+    });
+  }
+
+  return { weekly, quarters };
 }
