@@ -4,6 +4,7 @@
 import meals from "../../data/meals.json";
 import planConfig from "../../data/plan_config.json";
 import { DOW_ORDER } from "./config";
+import type { Dow } from "./types";
 
 interface Ingredient {
   food: string;
@@ -17,6 +18,8 @@ interface TemplateMeal {
   protein_g: number;
   kcal: number;
   items: Ingredient[];
+  prep?: string;
+  note?: string;
 }
 interface DinnerPlate {
   id: string;
@@ -40,6 +43,26 @@ export function proteinTargetG(bodyweightLb: number): number {
   return Math.round((bodyweightLb * 0.8) / 5) * 5;
 }
 
+export interface RecipeItem {
+  food: string;
+  amount?: string;
+  p?: number;
+  kcal?: number;
+}
+
+/** A selectable meal with its full ingredient breakdown + prep — "what it is
+ *  and what to make". Dinner plates fold in the shared fixed sides. */
+export interface MealRecipe {
+  id: string;
+  name: string;
+  group: string;
+  proteinG: number;
+  kcal: number;
+  items: RecipeItem[];
+  prep?: string;
+  note?: string;
+}
+
 export interface CatalogMeal {
   id: string;
   name: string;
@@ -48,20 +71,70 @@ export interface CatalogMeal {
   group: string;
 }
 
-/** Flat, selectable meal list for the Meals tracker. Dinner plates already
- *  include their fixed sides (the protein_g/kcal on each rotation entry). */
-export function mealCatalog(): CatalogMeal[] {
-  const out: CatalogMeal[] = [];
+const DINNER_SIDES_NOTE = "Every dinner plate includes the fixed sides listed above.";
+
+export function mealRecipes(): MealRecipe[] {
+  const out: MealRecipe[] = [];
   for (const m of MEALS.fixed_template) {
-    out.push({ id: m.id, name: m.name, proteinG: m.protein_g, kcal: m.kcal, group: "Fixed template" });
+    out.push({
+      id: m.id,
+      name: m.name,
+      group: "Fixed template",
+      proteinG: m.protein_g,
+      kcal: m.kcal,
+      items: m.items,
+      prep: m.prep,
+      note: m.note,
+    });
   }
   for (const d of MEALS.dinner_rotation) {
-    out.push({ id: d.id, name: d.name, proteinG: d.protein_g, kcal: d.kcal, group: "Dinner plates" });
+    out.push({
+      id: d.id,
+      name: d.name,
+      group: "Dinner plates",
+      proteinG: d.protein_g,
+      kcal: d.kcal,
+      // protein source + the shared sides = the full plate (sums to the total).
+      items: [d.protein_source, ...MEALS.dinner_fixed_sides.items],
+      note: DINNER_SIDES_NOTE,
+    });
   }
   for (const m of MEALS.super_meals_extra) {
-    out.push({ id: m.id, name: m.name, proteinG: m.protein_g, kcal: m.kcal, group: "Extra super meals" });
+    out.push({
+      id: m.id,
+      name: m.name,
+      group: "Extra super meals",
+      proteinG: m.protein_g,
+      kcal: m.kcal,
+      items: m.items,
+      prep: m.prep,
+      note: m.note,
+    });
   }
   return out;
+}
+
+/** The 5 fixed-template meals — the planned default day (197 g / 2535 kcal). */
+export function fixedTemplateMeals(): MealRecipe[] {
+  return mealRecipes().filter((m) => m.group === "Fixed template");
+}
+
+/** The rotation dinner planned for a given day of week. */
+export function dinnerForDow(dow: Dow): MealRecipe | null {
+  const plate = MEALS.dinner_rotation.find((d) => d.default_days.includes(dow));
+  if (!plate) return null;
+  return mealRecipes().find((m) => m.id === plate.id) ?? null;
+}
+
+/** Flat, selectable meal list (names + totals only) for the add-list. */
+export function mealCatalog(): CatalogMeal[] {
+  return mealRecipes().map((m) => ({
+    id: m.id,
+    name: m.name,
+    proteinG: m.proteinG,
+    kcal: m.kcal,
+    group: m.group,
+  }));
 }
 
 /** The fixed daily template (everything except dinner). Verified 197 g / 2535 kcal. */

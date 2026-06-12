@@ -1,10 +1,14 @@
 import { useMemo, useState } from "react";
 import {
   FLARE_PROTOCOL_SWAP,
+  dinnerForDow,
+  dowOf,
   findExcludedIngredients,
-  mealCatalog,
+  fixedTemplateMeals,
+  mealRecipes,
   proteinTargetG,
   todayISO,
+  type MealRecipe,
 } from "../engine";
 import { DailyChecks } from "../components/DailyChecks";
 import { Button, Card, ProgressBar, SafetyNote, SectionTitle } from "../components/ui";
@@ -13,6 +17,16 @@ import { useStore } from "../store/StoreProvider";
 import type { MealEntry } from "../store/types";
 
 const MULTIPLIERS = [0.5, 0.75, 1, 1.5, 2];
+
+function entryFor(recipe: MealRecipe, mult: number): MealEntry {
+  return {
+    mealId: recipe.id,
+    name: recipe.name,
+    multiplier: mult,
+    proteinG: Math.round(recipe.proteinG * mult),
+    kcal: Math.round(recipe.kcal * mult),
+  };
+}
 
 export function Meals() {
   const { state, setMealLog } = useStore();
@@ -26,6 +40,13 @@ export function Meals() {
   );
   const proteinTarget = proteinTargetG(state.settings.bodyweightLb);
 
+  const template = useMemo(() => fixedTemplateMeals(), []);
+  const tonightsDinner = useMemo(() => dinnerForDow(dowOf(date)), [date]);
+  const templateTotals = template.reduce(
+    (a, m) => ({ p: a.p + m.proteinG, k: a.k + m.kcal }),
+    { p: 0, k: 0 },
+  );
+
   function addMeal(entry: MealEntry) {
     setMealLog(date, [...meals, entry]);
   }
@@ -34,6 +55,9 @@ export function Meals() {
       date,
       meals.filter((_, i) => i !== index),
     );
+  }
+  function logTemplate() {
+    setMealLog(date, [...meals, ...template.map((m) => entryFor(m, 1))]);
   }
 
   return (
@@ -64,11 +88,9 @@ export function Meals() {
         </Card>
       )}
 
-      <section>
-        <SectionTitle>Today's meals</SectionTitle>
-        {meals.length === 0 ? (
-          <Card className="p-4 text-sm text-slate-500">Nothing logged yet.</Card>
-        ) : (
+      {meals.length > 0 && (
+        <section>
+          <SectionTitle>Today's meals</SectionTitle>
           <Card className="divide-y divide-slate-800">
             {meals.map((m, i) => (
               <div key={i} className="flex items-center justify-between gap-2 px-4 py-2.5">
@@ -91,18 +113,120 @@ export function Meals() {
               </div>
             ))}
           </Card>
+        </section>
+      )}
+
+      <section>
+        <SectionTitle>Today's plan — what to eat & make</SectionTitle>
+        <p className="px-1 pb-2 text-xs text-slate-500">
+          Your standard day is these five, every day ({templateTotals.p} g / {templateTotals.k} kcal),
+          plus tonight's dinner. Tap any meal to see its ingredients and how to build it.
+        </p>
+        <div className="mb-2">
+          <Button className="h-11 w-full" variant="secondary" onClick={logTemplate}>
+            Log the standard day ({templateTotals.p} g · {templateTotals.k} kcal)
+          </Button>
+        </div>
+        <div className="space-y-2">
+          {template.map((r) => (
+            <MealCard key={r.id} recipe={r} onAdd={addMeal} />
+          ))}
+        </div>
+
+        {tonightsDinner && (
+          <>
+            <p className="px-1 pb-2 pt-4 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Tonight's dinner
+            </p>
+            <MealCard recipe={tonightsDinner} onAdd={addMeal} />
+          </>
         )}
       </section>
 
-      <AddFromLibrary onAdd={addMeal} />
+      <BrowseLibrary onAdd={addMeal} />
       <CustomMeal onAdd={addMeal} />
     </div>
   );
 }
 
-function AddFromLibrary({ onAdd }: { onAdd: (e: MealEntry) => void }) {
-  const catalog = useMemo(() => mealCatalog(), []);
-  const groups = useMemo(() => [...new Set(catalog.map((m) => m.group))], [catalog]);
+function RecipeDetail({ recipe }: { recipe: MealRecipe }) {
+  return (
+    <div className="mt-3 border-t border-slate-800 pt-3">
+      <ul className="space-y-1.5 text-sm">
+        {recipe.items.map((it, i) => (
+          <li key={i} className="flex items-baseline justify-between gap-3">
+            <span className="text-slate-200">
+              {it.food}
+              {it.amount ? <span className="text-slate-500"> — {it.amount}</span> : null}
+            </span>
+            <span className="shrink-0 whitespace-nowrap text-xs tabular-nums text-slate-500">
+              {it.p != null ? `${it.p} g` : ""}
+              {it.kcal != null ? `${it.p != null ? " · " : ""}${it.kcal} kcal` : ""}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {recipe.prep && (
+        <p className="mt-2 text-sm text-slate-300">
+          <span className="font-semibold text-slate-400">Prep: </span>
+          {recipe.prep}
+        </p>
+      )}
+      {recipe.note && <p className="mt-1.5 text-xs italic text-slate-500">{recipe.note}</p>}
+    </div>
+  );
+}
+
+function MealCard({
+  recipe,
+  onAdd,
+  withMultiplier = false,
+}: {
+  recipe: MealRecipe;
+  onAdd: (e: MealEntry) => void;
+  withMultiplier?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [mult, setMult] = useState(1);
+  return (
+    <Card className="p-3">
+      <div className="flex items-center justify-between gap-2">
+        <button className="min-w-0 flex-1 text-left" onClick={() => setOpen((o) => !o)}>
+          <p className="truncate text-sm font-medium text-slate-100">
+            {recipe.name} <span className="text-slate-500">{open ? "▾" : "▸"}</span>
+          </p>
+          <p className="text-xs text-slate-500">
+            {Math.round(recipe.proteinG * mult)} g · {Math.round(recipe.kcal * mult)} kcal
+          </p>
+        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {withMultiplier && (
+            <select
+              value={mult}
+              onChange={(e) => setMult(Number(e.target.value))}
+              className="h-9 rounded-lg border border-slate-700 bg-slate-950 px-1 text-sm text-slate-200 focus:outline-none"
+              aria-label="portion"
+            >
+              {MULTIPLIERS.map((x) => (
+                <option key={x} value={x}>
+                  {x}×
+                </option>
+              ))}
+            </select>
+          )}
+          <Button className="h-9" onClick={() => onAdd(entryFor(recipe, mult))}>
+            Add
+          </Button>
+        </div>
+      </div>
+      {open && <RecipeDetail recipe={recipe} />}
+    </Card>
+  );
+}
+
+function BrowseLibrary({ onAdd }: { onAdd: (e: MealEntry) => void }) {
+  const recipes = useMemo(() => mealRecipes(), []);
+  const groups = useMemo(() => [...new Set(recipes.map((m) => m.group))], [recipes]);
   const [open, setOpen] = useState(false);
 
   return (
@@ -111,74 +235,26 @@ function AddFromLibrary({ onAdd }: { onAdd: (e: MealEntry) => void }) {
         className="flex w-full items-center justify-between px-1 pb-2 pt-1 text-xs font-semibold uppercase tracking-wider text-slate-400"
         onClick={() => setOpen((o) => !o)}
       >
-        Add from library
+        Browse all meals (recipes + portions)
         <span>{open ? "−" : "+"}</span>
       </button>
       {open && (
         <div className="space-y-4">
           {groups.map((group) => (
-            <Card key={group} className="p-2">
-              <p className="px-2 py-1 text-[11px] font-semibold uppercase text-slate-500">{group}</p>
-              <div className="divide-y divide-slate-800">
-                {catalog
+            <div key={group}>
+              <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase text-slate-500">{group}</p>
+              <div className="space-y-2">
+                {recipes
                   .filter((m) => m.group === group)
                   .map((m) => (
-                    <CatalogRow key={m.id} meal={m} onAdd={onAdd} />
+                    <MealCard key={m.id} recipe={m} onAdd={onAdd} withMultiplier />
                   ))}
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       )}
     </section>
-  );
-}
-
-function CatalogRow({
-  meal,
-  onAdd,
-}: {
-  meal: { id: string; name: string; proteinG: number; kcal: number };
-  onAdd: (e: MealEntry) => void;
-}) {
-  const [mult, setMult] = useState(1);
-  return (
-    <div className="flex items-center justify-between gap-2 px-2 py-2">
-      <div className="min-w-0">
-        <p className="truncate text-sm text-slate-200">{meal.name}</p>
-        <p className="text-xs text-slate-500">
-          {Math.round(meal.proteinG * mult)} g · {Math.round(meal.kcal * mult)} kcal
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        <select
-          value={mult}
-          onChange={(e) => setMult(Number(e.target.value))}
-          className="h-10 rounded-lg border border-slate-700 bg-slate-950 px-1 text-sm text-slate-200 focus:outline-none"
-          aria-label="portion"
-        >
-          {MULTIPLIERS.map((x) => (
-            <option key={x} value={x}>
-              {x}×
-            </option>
-          ))}
-        </select>
-        <Button
-          className="h-10"
-          onClick={() =>
-            onAdd({
-              mealId: meal.id,
-              name: meal.name,
-              multiplier: mult,
-              proteinG: Math.round(meal.proteinG * mult),
-              kcal: Math.round(meal.kcal * mult),
-            })
-          }
-        >
-          Add
-        </Button>
-      </div>
-    </div>
   );
 }
 

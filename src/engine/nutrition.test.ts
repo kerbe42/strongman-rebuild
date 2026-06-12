@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  dinnerForDow,
   dinnerRotationWeeklyAverage,
   findExcludedIngredients,
+  fixedTemplateMeals,
   fixedTemplateTotals,
+  mealRecipes,
   proteinTargetG,
   scanMealsForViolations,
 } from "./nutrition";
@@ -34,6 +37,51 @@ describe("7-day dinner-rotation weekly average", () => {
 
   it("averages ~3308 kcal/day (tolerance +/- 15 kcal)", () => {
     expect(Math.abs(avg.kcal - 3308)).toBeLessThanOrEqual(15);
+  });
+});
+
+describe("meal recipes — ingredients, amounts, prep", () => {
+  const recipes = mealRecipes();
+
+  it("exposes every ingredient with its amount and macros", () => {
+    const anchor = recipes.find((m) => m.id === "anchor_bowl")!;
+    expect(anchor.items).toHaveLength(5);
+    const yogurt = anchor.items[0]!;
+    expect(yogurt.food).toContain("Greek yogurt");
+    expect(yogurt.amount).toBeTruthy();
+    expect(yogurt.p).toBe(38);
+    expect(yogurt.kcal).toBe(220);
+  });
+
+  it("folds the shared fixed sides into each dinner plate (and the items sum to the plate total)", () => {
+    const thigh = recipes.find((m) => m.id === "dinner_thigh")!;
+    // protein source + 3 fixed sides (potatoes, salad, cherries)
+    expect(thigh.items).toHaveLength(4);
+    const pSum = thigh.items.reduce((a, it) => a + (it.p ?? 0), 0);
+    const kSum = thigh.items.reduce((a, it) => a + (it.kcal ?? 0), 0);
+    expect(pSum).toBe(thigh.proteinG); // 39
+    expect(kSum).toBe(thigh.kcal); // 780
+  });
+
+  it("carries prep instructions where the data provides them", () => {
+    const oats = recipes.find((m) => m.id === "protein_oats")!;
+    expect(oats.prep).toBe("Cook oats in milk, stir whey in off heat.");
+  });
+});
+
+describe("daily plan helpers", () => {
+  it("returns the 5 fixed-template meals (the default day)", () => {
+    const t = fixedTemplateMeals();
+    expect(t).toHaveLength(5);
+    expect(t.map((m) => m.id)).toContain("anchor_bowl");
+    expect(t.map((m) => m.id)).toContain("double_whey");
+  });
+
+  it("maps each day-of-week to its rotation dinner", () => {
+    expect(dinnerForDow("mon")!.id).toBe("dinner_thigh");
+    expect(dinnerForDow("wed")!.id).toBe("dinner_pork");
+    expect(dinnerForDow("sat")!.id).toBe("dinner_turkey");
+    expect(dinnerForDow("sun")!.id).toBe("dinner_haddock");
   });
 });
 
