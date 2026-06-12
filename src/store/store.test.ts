@@ -79,6 +79,21 @@ describe("import — validates version, refuses corrupting merges", () => {
     expect(importState(JSON.stringify({ version: 1, settings: 7 })).ok).toBe(false);
   });
 
+  it("backfills newly-added settings fields a foreign/older backup omits", () => {
+    // A valid v1 backup whose settings predates pinnedDemos/equipment fields.
+    const partial = {
+      ...defaultState(),
+      settings: { bodyweightLb: 290, kcalTarget: null, unitsDisplay: "lb" },
+    };
+    const res = importState(JSON.stringify(partial));
+    expect(res.ok).toBe(true);
+    if (res.ok) {
+      expect(res.state.settings.pinnedDemos).toEqual({}); // backfilled, not undefined
+      expect(res.state.settings.equipment).toEqual({ sandbag: false, axle: false });
+      expect(res.state.settings.bodyweightLb).toBe(290); // preserved
+    }
+  });
+
   it("does not write to storage by itself (caller decides to apply)", () => {
     importState(JSON.stringify(defaultState()));
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();

@@ -9,6 +9,7 @@ import {
 } from "../engine";
 import { LineChart, type Point } from "../components/LineChart";
 import { Button, Card, SectionTitle } from "../components/ui";
+import { parseNum } from "../lib/num";
 import { useRoute } from "../lib/router";
 import { useStore } from "../store/StoreProvider";
 
@@ -80,9 +81,11 @@ export function Progress() {
             />
             <Button
               className="h-11"
-              disabled={bw.trim() === ""}
+              disabled={parseNum(bw) == null}
               onClick={() => {
-                addBodyweight({ date: todayISO(), lb: Number(bw) });
+                const lb = parseNum(bw);
+                if (lb == null) return;
+                addBodyweight({ date: todayISO(), lb });
                 setBw("");
               }}
             >

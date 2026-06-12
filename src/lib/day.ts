@@ -4,7 +4,15 @@
 import { getExercise, sessionFor, type DaySession, type SessionItem } from "../engine";
 import type { AppState, DayOverride, ExerciseOverride } from "../store/types";
 
-export interface ResolvedSession extends DaySession {
+/** A session item plus the original engine exerciseId. After a swap the
+ *  `exerciseId` becomes the swapped-to id, but `originExerciseId` stays the id
+ *  the override is keyed under — the Plan editor must use it for lookup/patch. */
+export interface ResolvedItem extends SessionItem {
+  originExerciseId: string;
+}
+
+export interface ResolvedSession extends Omit<DaySession, "items"> {
+  items: ResolvedItem[];
   skipped: boolean;
   skipReason?: string;
 }
@@ -36,12 +44,15 @@ export function resolveSession(date: string, state: AppState): ResolvedSession |
   const session = sessionFor(date, engineStateOf(state));
   if (!session) return null;
   const ov: DayOverride | undefined = state.overrides[date];
-  if (!ov) return { ...session, skipped: false };
-  const items = session.items.map((it) => applyItemOverride(it, ov.exercises?.[it.exerciseId]));
+  const items: ResolvedItem[] = session.items.map((it) => {
+    const originExerciseId = it.exerciseId;
+    const applied = ov ? applyItemOverride(it, ov.exercises?.[originExerciseId]) : it;
+    return { ...applied, originExerciseId };
+  });
   return {
     ...session,
     items,
-    skipped: Boolean(ov.skipped),
-    ...(ov.skipReason ? { skipReason: ov.skipReason } : {}),
+    skipped: Boolean(ov?.skipped),
+    ...(ov?.skipReason ? { skipReason: ov.skipReason } : {}),
   };
 }

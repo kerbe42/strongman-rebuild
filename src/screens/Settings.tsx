@@ -1,6 +1,7 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { allLifts, proteinTargetG, resolveTM } from "../engine";
 import { Button, Card, NotSet, Pill, SectionTitle } from "../components/ui";
+import { parseNum } from "../lib/num";
 import { useStore } from "../store/StoreProvider";
 
 export function Settings() {
@@ -175,10 +176,7 @@ function TMTable() {
                     inputMode="numeric"
                     value={override ?? ""}
                     placeholder={String(effective)}
-                    onChange={(e) => {
-                      const v = e.target.value.trim();
-                      setTM(lift.id, q, v === "" ? null : Number(v));
-                    }}
+                    onChange={(e) => setTM(lift.id, q, parseNum(e.target.value))}
                     className={`h-10 w-full rounded-md border text-center text-sm tabular-nums focus:outline-none ${
                       override != null
                         ? "border-blue-600 bg-slate-950 text-slate-100"
@@ -230,16 +228,17 @@ function NumberBox({
   placeholder?: string;
 }) {
   const [local, setLocal] = useState(value == null ? "" : String(value));
+  // Resync when the store value changes externally (Clear, import, reset).
+  useEffect(() => {
+    setLocal(value == null ? "" : String(value));
+  }, [value]);
   return (
     <input
       inputMode="numeric"
       value={local}
       placeholder={placeholder}
       onChange={(e) => setLocal(e.target.value)}
-      onBlur={() => {
-        const t = local.trim();
-        onCommit(t === "" ? null : Number(t));
-      }}
+      onBlur={() => onCommit(parseNum(local))}
       className="h-11 w-32 rounded-lg border border-slate-700 bg-slate-950 px-3 text-base text-slate-100 placeholder:text-slate-600 focus:border-blue-500 focus:outline-none"
     />
   );

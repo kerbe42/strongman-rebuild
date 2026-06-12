@@ -32,7 +32,7 @@ export function Exercises() {
 
 function ExerciseEntry({ ex }: { ex: ExerciseLib }) {
   const { state, setPinnedDemo } = useStore();
-  const pinned = state.settings.pinnedDemos[ex.id];
+  const pinned = (state.settings.pinnedDemos ?? {})[ex.id];
   const [editingPin, setEditingPin] = useState(false);
   const [url, setUrl] = useState(pinned ?? "");
 

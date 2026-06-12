@@ -50,7 +50,9 @@ export function SessionView({
   return (
     <div className="space-y-3">
       {session.items.map((item, i) => (
-        <ExerciseCard key={`${item.exerciseId}-${i}`} item={item} date={date} />
+        // Key by date so the card remounts (and re-seeds its log inputs) when
+        // navigating between days — prevents stale rows leaking across dates.
+        <ExerciseCard key={`${date}-${item.exerciseId}-${i}`} item={item} date={date} />
       ))}
     </div>
   );

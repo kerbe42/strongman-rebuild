@@ -46,6 +46,27 @@ function validationError(data: unknown): string | null {
   return null;
 }
 
+/**
+ * Merge a validated candidate onto a fresh default, backfilling any top-level
+ * slice AND any nested settings field a foreign/older backup may omit (e.g.
+ * pinnedDemos or an equipment flag). Without this, consumers that index
+ * settings.pinnedDemos would crash on such a backup.
+ */
+function hydrate(parsed: AppState): AppState {
+  const base = defaultState();
+  const s = parsed.settings;
+  return {
+    ...base,
+    ...parsed,
+    settings: {
+      ...base.settings,
+      ...s,
+      equipment: { ...base.settings.equipment, ...(s?.equipment ?? {}) },
+      pinnedDemos: s?.pinnedDemos ?? {},
+    },
+  };
+}
+
 export function loadState(): AppState {
   let raw: string | null = null;
   try {
@@ -57,8 +78,7 @@ export function loadState(): AppState {
   try {
     const parsed: unknown = JSON.parse(raw);
     if (validationError(parsed) !== null) return defaultState();
-    // Fill any newly-added top-level slices that an older save may lack.
-    return { ...defaultState(), ...(parsed as AppState) };
+    return hydrate(parsed as AppState);
   } catch {
     return defaultState();
   }
@@ -88,6 +108,5 @@ export function importState(text: string): ImportResult {
   }
   const error = validationError(parsed);
   if (error !== null) return { ok: false, error };
-  // Merge over a default so optional slices are always present, then replace.
-  return { ok: true, state: { ...defaultState(), ...(parsed as AppState) } };
+  return { ok: true, state: hydrate(parsed as AppState) };
 }

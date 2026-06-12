@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   allExercises,
   buildCalendar,
@@ -9,6 +9,7 @@ import { SessionView } from "../components/SessionView";
 import { Button, Card, Pill, SectionTitle, WeekTypeBadge } from "../components/ui";
 import { resolveSession } from "../lib/day";
 import { formatDate } from "../lib/format";
+import { parseNum } from "../lib/num";
 import { useRoute } from "../lib/router";
 import { useStore } from "../store/StoreProvider";
 import type { DayOverride, ExerciseOverride } from "../store/types";
@@ -173,9 +174,9 @@ function DayDetail({ date }: { date: string }) {
           <SectionTitle>Per-day overrides (deltas only)</SectionTitle>
           <div className="space-y-3">
             {session.items.map((item, i) => {
-              const o = ov.exercises?.[item.exerciseId];
+              const o = ov.exercises?.[item.originExerciseId];
               return (
-                <Card key={`${item.exerciseId}-${i}`} className="p-4">
+                <Card key={`${item.originExerciseId}-${i}`} className="p-4">
                   <p className="font-semibold text-slate-100">{item.name}</p>
                   <p className="mt-0.5 text-xs text-slate-500">
                     Plan: {item.sets ?? "—"}
@@ -187,19 +188,19 @@ function DayDetail({ date }: { date: string }) {
                       label="weight"
                       value={o?.weightLb}
                       placeholder={item.weightLb?.toString() ?? "—"}
-                      onCommit={(v) => patchExercise(item.exerciseId, { weightLb: v ?? undefined })}
+                      onCommit={(v) => patchExercise(item.originExerciseId, { weightLb: v ?? undefined })}
                     />
                     <OverrideInput
                       label="sets"
                       value={o?.sets}
                       placeholder={typeof item.sets === "number" ? String(item.sets) : "—"}
-                      onCommit={(v) => patchExercise(item.exerciseId, { sets: v ?? undefined })}
+                      onCommit={(v) => patchExercise(item.originExerciseId, { sets: v ?? undefined })}
                     />
                     <OverrideText
                       label="reps"
                       value={o?.reps}
                       placeholder={item.reps ?? "—"}
-                      onCommit={(v) => patchExercise(item.exerciseId, { reps: v || undefined })}
+                      onCommit={(v) => patchExercise(item.originExerciseId, { reps: v || undefined })}
                     />
                   </div>
                   <div className="mt-2">
@@ -207,7 +208,7 @@ function DayDetail({ date }: { date: string }) {
                     <select
                       value={o?.swapToExerciseId ?? ""}
                       onChange={(e) =>
-                        patchExercise(item.exerciseId, {
+                        patchExercise(item.originExerciseId, {
                           swapToExerciseId: e.target.value || undefined,
                         })
                       }
@@ -224,7 +225,7 @@ function DayDetail({ date }: { date: string }) {
                   {o && Object.keys(o).length > 0 && (
                     <button
                       className="mt-2 text-xs text-slate-500 hover:text-slate-300"
-                      onClick={() => patchExercise(item.exerciseId, {
+                      onClick={() => patchExercise(item.originExerciseId, {
                         weightLb: undefined,
                         sets: undefined,
                         reps: undefined,
@@ -269,6 +270,9 @@ function OverrideInput({
   onCommit: (v: number | null) => void;
 }) {
   const [local, setLocal] = useState(value == null ? "" : String(value));
+  useEffect(() => {
+    setLocal(value == null ? "" : String(value));
+  }, [value]);
   return (
     <div>
       <label className="text-[10px] uppercase text-slate-500">{label}</label>
@@ -277,7 +281,7 @@ function OverrideInput({
         value={local}
         placeholder={placeholder}
         onChange={(e) => setLocal(e.target.value)}
-        onBlur={() => onCommit(local.trim() === "" ? null : Number(local))}
+        onBlur={() => onCommit(parseNum(local))}
         className="h-11 w-full rounded-lg border border-slate-700 bg-slate-950 px-2 text-center text-sm text-slate-100 placeholder:text-slate-600 focus:border-blue-500 focus:outline-none"
       />
     </div>
@@ -296,6 +300,9 @@ function OverrideText({
   onCommit: (v: string) => void;
 }) {
   const [local, setLocal] = useState(value ?? "");
+  useEffect(() => {
+    setLocal(value ?? "");
+  }, [value]);
   return (
     <div>
       <label className="text-[10px] uppercase text-slate-500">{label}</label>

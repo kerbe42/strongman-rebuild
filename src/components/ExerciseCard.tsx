@@ -3,12 +3,20 @@ import { demoSearchUrl, type SessionItem } from "../engine";
 import { useStore } from "../store/StoreProvider";
 import type { SetLog } from "../store/types";
 import { formatWeight } from "../lib/format";
+import { parseNum } from "../lib/num";
 import { Button, Card, Pill, SafetyNote } from "./ui";
 
 function numericReps(reps: string | undefined): string {
   if (!reps) return "";
   const m = reps.match(/^\d+/);
   return m ? m[0] : "";
+}
+
+interface Row {
+  set: number;
+  weight: string;
+  reps: string;
+  rpe: string;
 }
 
 export function ExerciseCard({ item, date }: { item: SessionItem; date: string }) {
@@ -20,32 +28,39 @@ export function ExerciseCard({ item, date }: { item: SessionItem; date: string }
   const isLogged = logged.length > 0;
   const setCount = typeof item.sets === "number" ? item.sets : 1;
 
-  const [rows, setRows] = useState<Array<{ weight: string; reps: string; rpe: string }>>(() => {
-    if (logged.length > 0) {
-      return logged.map((s) => ({
-        weight: s.weightLb?.toString() ?? "",
-        reps: s.reps?.toString() ?? "",
-        rpe: s.rpe?.toString() ?? "",
-      }));
-    }
-    return Array.from({ length: setCount }, () => ({
+  function blankRows(): Row[] {
+    return Array.from({ length: setCount }, (_, i) => ({
+      set: i + 1,
       weight: item.weightLb?.toString() ?? "",
       reps: numericReps(item.reps),
       rpe: "",
     }));
-  });
+  }
 
-  const pinnedUrl = state.settings.pinnedDemos[item.exerciseId];
+  // This card is keyed by date in SessionView, so it remounts (and re-seeds)
+  // when the user navigates to a different day — no stale cross-date rows.
+  const [rows, setRows] = useState<Row[]>(() =>
+    logged.length > 0
+      ? logged.map((s) => ({
+          set: s.set,
+          weight: s.weightLb?.toString() ?? "",
+          reps: s.reps?.toString() ?? "",
+          rpe: s.rpe?.toString() ?? "",
+        }))
+      : blankRows(),
+  );
+
+  const pinnedUrl = (state.settings.pinnedDemos ?? {})[item.exerciseId];
   const demoUrl = pinnedUrl ?? (item.demoSearch ? demoSearchUrl(item.demoSearch) : null);
 
   function save() {
     const next: SetLog[] = rows
-      .map((r, i) => ({
+      .map((r) => ({
         exerciseId: item.exerciseId,
-        set: i + 1,
-        weightLb: r.weight.trim() === "" ? null : Number(r.weight),
-        reps: r.reps.trim() === "" ? null : Number(r.reps),
-        rpe: r.rpe.trim() === "" ? null : Number(r.rpe),
+        set: r.set,
+        weightLb: parseNum(r.weight),
+        reps: parseNum(r.reps),
+        rpe: parseNum(r.rpe),
       }))
       .filter((s) => s.weightLb != null || s.reps != null || s.rpe != null);
     const others = (state.trainingLog[date] ?? []).filter((s) => s.exerciseId !== item.exerciseId);
@@ -56,6 +71,7 @@ export function ExerciseCard({ item, date }: { item: SessionItem; date: string }
   function clearLog() {
     const others = (state.trainingLog[date] ?? []).filter((s) => s.exerciseId !== item.exerciseId);
     setTrainingLog(date, others);
+    setRows(blankRows()); // don't resurrect the cleared log on re-open
     setOpen(false);
   }
 
@@ -124,7 +140,7 @@ export function ExerciseCard({ item, date }: { item: SessionItem; date: string }
           <div className="space-y-2">
             {rows.map((r, i) => (
               <div key={i} className="flex items-center gap-2">
-                <span className="w-12 shrink-0 text-xs text-slate-500">Set {i + 1}</span>
+                <span className="w-12 shrink-0 text-xs text-slate-500">Set {r.set}</span>
                 <LogInput
                   placeholder="lb"
                   value={r.weight}

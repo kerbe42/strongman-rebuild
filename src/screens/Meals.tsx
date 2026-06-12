@@ -8,6 +8,7 @@ import {
 } from "../engine";
 import { DailyChecks } from "../components/DailyChecks";
 import { Button, Card, ProgressBar, SafetyNote, SectionTitle } from "../components/ui";
+import { parseNum } from "../lib/num";
 import { useStore } from "../store/StoreProvider";
 import type { MealEntry } from "../store/types";
 
@@ -227,8 +228,8 @@ function CustomMeal({ onAdd }: { onAdd: (e: MealEntry) => void }) {
               mealId: "custom",
               name: name.trim(),
               multiplier: 1,
-              proteinG: Number(protein || 0),
-              kcal: Number(kcal || 0),
+              proteinG: parseNum(protein) ?? 0,
+              kcal: parseNum(kcal) ?? 0,
             });
             setName("");
             setProtein("");

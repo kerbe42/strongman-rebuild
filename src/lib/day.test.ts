@@ -47,4 +47,21 @@ describe("resolveSession — engine output + per-day override deltas", () => {
     expect(s.items[0]!.exerciseId).toBe("axle_deadlift_doh");
     expect(s.items[0]!.safety).toBe("Strapless permanently — this slot IS the grip training.");
   });
+
+  it("preserves the original engine exerciseId so the override editor can re-key it", () => {
+    const noOverride = resolveSession(MON_WK1, defaultState())!;
+    // With no override, origin == resolved id.
+    expect(noOverride.items[0]!.originExerciseId).toBe("trap_bar_deadlift");
+    expect(noOverride.items[0]!.originExerciseId).toBe(noOverride.items[0]!.exerciseId);
+
+    // After a swap, the resolved id changes but origin stays the engine id (the
+    // key the override is stored under).
+    const state = defaultState();
+    state.overrides[MON_WK1] = {
+      exercises: { trap_bar_deadlift: { swapToExerciseId: "axle_deadlift_doh" } },
+    };
+    const swapped = resolveSession(MON_WK1, state)!;
+    expect(swapped.items[0]!.exerciseId).toBe("axle_deadlift_doh");
+    expect(swapped.items[0]!.originExerciseId).toBe("trap_bar_deadlift");
+  });
 });
