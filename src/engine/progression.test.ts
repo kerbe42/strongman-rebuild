@@ -206,25 +206,41 @@ describe("warmupSets — ramp-up sets below the working weight", () => {
 });
 
 describe("warmupRampPlated — loadable warm-ups on a real bar + plates", () => {
-  const PLATES = [45, 25, 10, 5, 2.5];
+  // Justin's inventory (total plates owned).
+  const STOCK = [
+    { lb: 45, count: 6 },
+    { lb: 35, count: 4 },
+    { lb: 25, count: 4 },
+    { lb: 10, count: 6 },
+    { lb: 5, count: 6 },
+    { lb: 2.5, count: 4 },
+  ];
 
-  it("snaps each step to a weight loadable on the 54 lb trap bar, with per-side plates", () => {
-    expect(warmupRampPlated(315, 54, PLATES)).toEqual([
-      { weight: 124, reps: 5, perSide: [25, 10] },
+  it("snaps each step to a weight loadable on the 54 lb bar, with per-side plates", () => {
+    expect(warmupRampPlated(315, 54, STOCK)).toEqual([
+      { weight: 124, reps: 5, perSide: [35] },
       { weight: 174, reps: 4, perSide: [45, 10, 5] },
-      { weight: 224, reps: 3, perSide: [45, 25, 10, 5] },
+      { weight: 224, reps: 3, perSide: [45, 35, 5] },
       { weight: 264, reps: 2, perSide: [45, 45, 10, 5] },
     ]);
   });
 
   it("each set is loadable (bar + 2x per-side plate sum) and below the working weight", () => {
     for (const working of [315, 235, 405]) {
-      for (const s of warmupRampPlated(working, 54, PLATES)) {
+      for (const s of warmupRampPlated(working, 54, STOCK)) {
         const perSideSum = s.perSide.reduce((a, b) => a + b, 0);
         expect(54 + 2 * perSideSum).toBe(s.weight);
         expect(s.weight).toBeLessThan(working);
         expect(s.weight).toBeGreaterThan(54);
       }
+    }
+  });
+
+  it("never uses more plates per side than are owned (count/2)", () => {
+    // Only one pair of 45s -> at most one 45 per side, ever.
+    const tiny = [{ lb: 45, count: 2 }];
+    for (const s of warmupRampPlated(500, 54, tiny)) {
+      expect(s.perSide.filter((p) => p === 45).length).toBeLessThanOrEqual(1);
     }
   });
 });

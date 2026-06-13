@@ -62,7 +62,7 @@ export function ExerciseCard({ item, date }: { item: SessionItem; date: string }
     item.weightLb == null
       ? []
       : plateAware
-        ? warmupRampPlated(item.weightLb, LOADING.trap_bar_lb, LOADING.plate_pairs_lb)
+        ? warmupRampPlated(item.weightLb, LOADING.trap_bar_lb, LOADING.plates)
         : warmupRamp(item.weightLb);
 
   function save() {

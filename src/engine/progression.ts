@@ -172,15 +172,25 @@ export interface PlatedWarmupSet extends WarmupSet {
   perSide: number[];
 }
 
-/** Greedily break a per-side weight into plates (largest first). Assumes you
- * own enough of each pair; exact for the standard 45/25/10/5/2.5 set. */
-function greedyPlates(perSide: number, plates: number[]): number[] {
+/** Total plates owned of one size. Loads symmetrically, so the number usable
+ * PER SIDE is `floor(count / 2)`. */
+export interface PlateStock {
+  lb: number;
+  count: number;
+}
+
+/** Greedily fill a per-side weight from largest plate down, never using more of
+ * a size than is available per side (floor(count/2)). Returns the plates for ONE
+ * side; their sum may fall short of the target if you run out of plates. */
+function greedyPlates(perSideTarget: number, stock: PlateStock[]): number[] {
   const out: number[] = [];
-  let rem = perSide;
-  for (const p of [...plates].sort((a, b) => b - a)) {
-    while (rem >= p - 1e-9) {
-      out.push(p);
-      rem -= p;
+  let rem = perSideTarget;
+  for (const { lb, count } of [...stock].sort((a, b) => b.lb - a.lb)) {
+    let avail = Math.floor(count / 2);
+    while (avail > 0 && rem >= lb - 1e-9) {
+      out.push(lb);
+      rem -= lb;
+      avail--;
     }
   }
   return out;
@@ -188,26 +198,30 @@ function greedyPlates(perSide: number, plates: number[]): number[] {
 
 /**
  * Warm-up ramp for a lift loaded on a real bar: each step snaps to a weight you
- * can actually load (bar + a symmetric pair of plates), rounding the per-side
- * load to the nearest 5 lb so you aren't fiddling with tiny plates, and carries
- * the per-side plate loadout for display. Skips anything at/below the empty bar
+ * can actually load (bar + a symmetric plate pair), rounding the per-side load
+ * to the nearest 5 lb so you aren't fiddling with tiny plates, then loads it
+ * from the plates you actually own (capped by quantity per side). The set's
+ * weight reflects what's truly loadable. Skips anything at/below the empty bar
  * or at/above the working weight, and collapses duplicates.
  */
 export function warmupRampPlated(
   workingWeight: number,
   barLb: number,
-  plates: number[],
+  stock: PlateStock[],
 ): PlatedWarmupSet[] {
   const out: PlatedWarmupSet[] = [];
   let last = 0;
   for (const [pct, reps] of WARMUP_STEPS) {
     const perSideRaw = (workingWeight * pct - barLb) / 2;
     if (perSideRaw <= 0) continue;
-    const perSide = Math.round(perSideRaw / 5) * 5;
-    if (perSide <= 0) continue;
-    const weight = barLb + 2 * perSide;
+    const perSideTarget = Math.round(perSideRaw / 5) * 5;
+    if (perSideTarget <= 0) continue;
+    const perSide = greedyPlates(perSideTarget, stock);
+    const loaded = perSide.reduce((a, b) => a + b, 0);
+    if (loaded <= 0) continue;
+    const weight = barLb + 2 * loaded;
     if (weight >= workingWeight || weight <= last) continue;
-    out.push({ weight, reps, perSide: greedyPlates(perSide, plates) });
+    out.push({ weight, reps, perSide });
     last = weight;
   }
   return out;

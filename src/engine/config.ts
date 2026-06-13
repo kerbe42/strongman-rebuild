@@ -27,7 +27,8 @@ export const SANDBAG_OVER_BAR_FROM_WEEK: number =
   planConfig.rep_schemes.sandbag_over_bar_starts_week; // 5
 export const LOADING = planConfig.loading as {
   trap_bar_lb: number;
-  plate_pairs_lb: number[];
+  /** Total plates owned of each size (loads symmetrically → per side = count/2). */
+  plates: Array<{ lb: number; count: number }>;
   plate_aware_lifts: string[];
 };
 
