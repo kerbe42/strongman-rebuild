@@ -165,3 +165,50 @@ export function warmupRamp(workingWeight: number, roundTo = 10): WarmupSet[] {
 export function warmupSets(liftId: string, week: number, overrides: TmOverrides = {}): WarmupSet[] {
   return warmupRamp(targetWeight(liftId, week, overrides));
 }
+
+/** A warm-up set with the actual per-side plate loadout for a bar lift. */
+export interface PlatedWarmupSet extends WarmupSet {
+  /** Plate denominations to put on EACH side, largest first. */
+  perSide: number[];
+}
+
+/** Greedily break a per-side weight into plates (largest first). Assumes you
+ * own enough of each pair; exact for the standard 45/25/10/5/2.5 set. */
+function greedyPlates(perSide: number, plates: number[]): number[] {
+  const out: number[] = [];
+  let rem = perSide;
+  for (const p of [...plates].sort((a, b) => b - a)) {
+    while (rem >= p - 1e-9) {
+      out.push(p);
+      rem -= p;
+    }
+  }
+  return out;
+}
+
+/**
+ * Warm-up ramp for a lift loaded on a real bar: each step snaps to a weight you
+ * can actually load (bar + a symmetric pair of plates), rounding the per-side
+ * load to the nearest 5 lb so you aren't fiddling with tiny plates, and carries
+ * the per-side plate loadout for display. Skips anything at/below the empty bar
+ * or at/above the working weight, and collapses duplicates.
+ */
+export function warmupRampPlated(
+  workingWeight: number,
+  barLb: number,
+  plates: number[],
+): PlatedWarmupSet[] {
+  const out: PlatedWarmupSet[] = [];
+  let last = 0;
+  for (const [pct, reps] of WARMUP_STEPS) {
+    const perSideRaw = (workingWeight * pct - barLb) / 2;
+    if (perSideRaw <= 0) continue;
+    const perSide = Math.round(perSideRaw / 5) * 5;
+    if (perSide <= 0) continue;
+    const weight = barLb + 2 * perSide;
+    if (weight >= workingWeight || weight <= last) continue;
+    out.push({ weight, reps, perSide: greedyPlates(perSide, plates) });
+    last = weight;
+  }
+  return out;
+}

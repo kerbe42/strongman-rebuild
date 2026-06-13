@@ -25,6 +25,11 @@ export const WATER_RANGE_L: number[] = planConfig.athlete.water_l_per_day; // [3
 export const CREATINE_G: number = planConfig.athlete.creatine_g_per_day; // 10
 export const SANDBAG_OVER_BAR_FROM_WEEK: number =
   planConfig.rep_schemes.sandbag_over_bar_starts_week; // 5
+export const LOADING = planConfig.loading as {
+  trap_bar_lb: number;
+  plate_pairs_lb: number[];
+  plate_aware_lifts: string[];
+};
 
 const LIFTS = planConfig.lifts as unknown as LiftConfig[];
 const liftsById = new Map<string, LiftConfig>(LIFTS.map((l) => [l.id, l]));

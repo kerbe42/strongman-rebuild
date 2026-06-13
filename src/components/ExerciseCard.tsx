@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { demoSearchUrl, warmupRamp, type SessionItem } from "../engine";
+import { LOADING, demoSearchUrl, warmupRamp, warmupRampPlated, type SessionItem, type WarmupSet } from "../engine";
 import { useStore } from "../store/StoreProvider";
 import type { SetLog } from "../store/types";
 import { formatWeight } from "../lib/format";
@@ -54,8 +54,16 @@ export function ExerciseCard({ item, date }: { item: SessionItem; date: string }
   const demoUrl = pinnedUrl ?? (item.demoSearch ? demoSearchUrl(item.demoSearch) : null);
 
   // Warm-up ramp up to the working weight (every weighted lift). Empty for
-  // bodyweight / RPE-driven (test-week single) / no-load items.
-  const warmups = item.weightLb != null ? warmupRamp(item.weightLb) : [];
+  // bodyweight / RPE-driven (test-week single) / no-load items. Trap-bar lifts
+  // snap to weights loadable on the configured bar + plates and carry the
+  // per-side plate loadout; everything else uses the simple nearest-10 ramp.
+  const plateAware = item.liftId != null && LOADING.plate_aware_lifts.includes(item.liftId);
+  const warmups: Array<WarmupSet & { perSide?: number[] }> =
+    item.weightLb == null
+      ? []
+      : plateAware
+        ? warmupRampPlated(item.weightLb, LOADING.trap_bar_lb, LOADING.plate_pairs_lb)
+        : warmupRamp(item.weightLb);
 
   function save() {
     const next: SetLog[] = rows
@@ -106,6 +114,9 @@ export function ExerciseCard({ item, date }: { item: SessionItem; date: string }
                 <span key={i}>
                   {i > 0 && <span className="text-slate-600"> · </span>}
                   {formatWeight(w.weight)} × {w.reps}
+                  {w.perSide && w.perSide.length > 0 && (
+                    <span className="text-slate-600"> ({w.perSide.join("+")}/side)</span>
+                  )}
                 </span>
               ))}
             </p>

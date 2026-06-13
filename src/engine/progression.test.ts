@@ -7,6 +7,7 @@ import {
   quarterOf,
   targetWeight,
   warmupRamp,
+  warmupRampPlated,
   warmupSets,
   weekInQuarter,
   weekType,
@@ -201,5 +202,29 @@ describe("warmupSets — ramp-up sets below the working weight", () => {
     const ramp = warmupSets("trap_bar_deadlift", 1, tms);
     expect(ramp[0]!.weight).toBe(160); // mround(405*0.4,10)
     expect(ramp.every((s) => s.weight < 405)).toBe(true);
+  });
+});
+
+describe("warmupRampPlated — loadable warm-ups on a real bar + plates", () => {
+  const PLATES = [45, 25, 10, 5, 2.5];
+
+  it("snaps each step to a weight loadable on the 54 lb trap bar, with per-side plates", () => {
+    expect(warmupRampPlated(315, 54, PLATES)).toEqual([
+      { weight: 124, reps: 5, perSide: [25, 10] },
+      { weight: 174, reps: 4, perSide: [45, 10, 5] },
+      { weight: 224, reps: 3, perSide: [45, 25, 10, 5] },
+      { weight: 264, reps: 2, perSide: [45, 45, 10, 5] },
+    ]);
+  });
+
+  it("each set is loadable (bar + 2x per-side plate sum) and below the working weight", () => {
+    for (const working of [315, 235, 405]) {
+      for (const s of warmupRampPlated(working, 54, PLATES)) {
+        const perSideSum = s.perSide.reduce((a, b) => a + b, 0);
+        expect(54 + 2 * perSideSum).toBe(s.weight);
+        expect(s.weight).toBeLessThan(working);
+        expect(s.weight).toBeGreaterThan(54);
+      }
+    }
   });
 });
