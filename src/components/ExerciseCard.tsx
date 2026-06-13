@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { demoSearchUrl, type SessionItem } from "../engine";
+import { demoSearchUrl, warmupRamp, type SessionItem } from "../engine";
 import { useStore } from "../store/StoreProvider";
 import type { SetLog } from "../store/types";
 import { formatWeight } from "../lib/format";
@@ -53,6 +53,10 @@ export function ExerciseCard({ item, date }: { item: SessionItem; date: string }
   const pinnedUrl = (state.settings.pinnedDemos ?? {})[item.exerciseId];
   const demoUrl = pinnedUrl ?? (item.demoSearch ? demoSearchUrl(item.demoSearch) : null);
 
+  // Warm-up ramp up to the working weight (every weighted lift). Empty for
+  // bodyweight / RPE-driven (test-week single) / no-load items.
+  const warmups = item.weightLb != null ? warmupRamp(item.weightLb) : [];
+
   function save() {
     const next: SetLog[] = rows
       .map((r) => ({
@@ -93,7 +97,19 @@ export function ExerciseCard({ item, date }: { item: SessionItem; date: string }
             {item.weightLb != null && (
               <span className="ml-1 font-semibold text-slate-100">@ {formatWeight(item.weightLb)}</span>
             )}
+            {item.weightLb != null && <span className="text-slate-500"> (working sets)</span>}
           </p>
+          {warmups.length > 0 && (
+            <p className="mt-1 text-xs text-slate-500">
+              <span className="text-slate-400">Warm-up first:</span>{" "}
+              {warmups.map((w, i) => (
+                <span key={i}>
+                  {i > 0 && <span className="text-slate-600"> · </span>}
+                  {formatWeight(w.weight)} × {w.reps}
+                </span>
+              ))}
+            </p>
+          )}
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {item.rpeCap && <Pill>RPE {item.rpeCap}</Pill>}
             {item.rest && <Pill>rest {item.rest}</Pill>}

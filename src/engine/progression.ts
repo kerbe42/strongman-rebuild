@@ -128,3 +128,40 @@ export function liftTrajectory(liftId: string, overrides: TmOverrides = {}): Lif
 
   return { weekly, quarters };
 }
+
+/** A warm-up set: a lighter ramp set done before the working sets. */
+export interface WarmupSet {
+  weight: number;
+  reps: number;
+}
+
+// Percent-of-working-weight ramp, with fewer reps as the bar gets heavier.
+const WARMUP_STEPS: ReadonlyArray<readonly [number, number]> = [
+  [0.4, 5],
+  [0.55, 4],
+  [0.7, 3],
+  [0.85, 2],
+];
+
+/**
+ * Warm-up ramp leading up to a lift's working weight for the week. Rounds each
+ * set to the nearest 10 lb (coarser than the working increment, so fewer plate
+ * changes), drops any set that meets/exceeds the working weight, and collapses
+ * duplicate weights — so light lifts naturally get fewer warm-up sets. Honors
+ * saved TM overrides via the resolved working weight.
+ */
+export function warmupRamp(workingWeight: number, roundTo = 10): WarmupSet[] {
+  const out: WarmupSet[] = [];
+  let last = 0;
+  for (const [pct, reps] of WARMUP_STEPS) {
+    const weight = mround(workingWeight * pct, roundTo);
+    if (weight <= 0 || weight >= workingWeight || weight <= last) continue;
+    out.push({ weight, reps });
+    last = weight;
+  }
+  return out;
+}
+
+export function warmupSets(liftId: string, week: number, overrides: TmOverrides = {}): WarmupSet[] {
+  return warmupRamp(targetWeight(liftId, week, overrides));
+}

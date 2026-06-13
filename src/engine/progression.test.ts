@@ -6,6 +6,8 @@ import {
   mround,
   quarterOf,
   targetWeight,
+  warmupRamp,
+  warmupSets,
   weekInQuarter,
   weekType,
 } from "./progression";
@@ -146,5 +148,58 @@ describe("liftTrajectory — full 52-week projection for the trajectory view", (
     const sb = liftTrajectory("sandbag");
     const q1 = sb.weekly.filter((p) => p.quarter === 1).map((p) => p.weight);
     expect(new Set(q1).size).toBe(1);
+  });
+});
+
+describe("warmupSets — ramp-up sets below the working weight", () => {
+  it("warmupRamp builds straight from a working weight (what the card uses)", () => {
+    expect(warmupRamp(315)).toEqual([
+      { weight: 130, reps: 5 },
+      { weight: 170, reps: 4 },
+      { weight: 220, reps: 3 },
+      { weight: 270, reps: 2 },
+    ]);
+    // Light weight collapses to fewer sets; zero/negative yields none.
+    expect(warmupRamp(40)).toEqual([{ weight: 20, reps: 5 }, { weight: 30, reps: 3 }]);
+    expect(warmupRamp(0)).toEqual([]);
+  });
+
+  it("ramps a heavy lift at 40/55/70/85% x 5/4/3/2, rounded to 10", () => {
+    // Trap-bar wk1 working = 315.
+    expect(warmupSets("trap_bar_deadlift", 1)).toEqual([
+      { weight: 130, reps: 5 },
+      { weight: 170, reps: 4 },
+      { weight: 220, reps: 3 },
+      { weight: 270, reps: 2 },
+    ]);
+  });
+
+  it("collapses to fewer sets for light lifts (no duplicate weights)", () => {
+    // DB split squat wk1 working = 40/hand -> 40%/55% both round to 20, dedup.
+    expect(warmupSets("db_split_squat", 1)).toEqual([
+      { weight: 20, reps: 5 },
+      { weight: 30, reps: 3 },
+    ]);
+  });
+
+  it("never meets or exceeds the working weight and is strictly increasing", () => {
+    for (const id of ["trap_bar_deadlift", "smith_squat", "axle_dl_doh", "db_bench", "sandbag"]) {
+      for (const week of [1, 6, 11, 40]) {
+        const working = targetWeight(id, week);
+        const ramp = warmupSets(id, week);
+        for (let i = 0; i < ramp.length; i++) {
+          expect(ramp[i]!.weight).toBeLessThan(working);
+          if (i > 0) expect(ramp[i]!.weight).toBeGreaterThan(ramp[i - 1]!.weight);
+        }
+      }
+    }
+  });
+
+  it("honors TM overrides via the resolved working weight", () => {
+    // Q1 override 405 -> warmups computed from 405, not the 315 placeholder.
+    const tms = { trap_bar_deadlift: [405, null, null, null] as (number | null)[] };
+    const ramp = warmupSets("trap_bar_deadlift", 1, tms);
+    expect(ramp[0]!.weight).toBe(160); // mround(405*0.4,10)
+    expect(ramp.every((s) => s.weight < 405)).toBe(true);
   });
 });
